@@ -1,0 +1,12 @@
+# PlatformIO build output
+.pio/
+.vscode/
+
+# Your own settings (Wi-Fi password, keys) - copy config.example.h to config.h
+firmware/include/config.h
+
+# Series logos are trademarks: generated locally by tools/make_logos.py
+firmware/include/logos.h
+
+# OpenSCAD backups
+*.scad~
