@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "net_util.h"
+#include "state_lock.h"
 
 namespace {
 
@@ -123,6 +124,7 @@ void F1Feed::processRecord(const char* rec, size_t len) {
     return;
   }
 
+  StateGuard guard;  // the display reads the state from the other core
   bool keyChanged = false;
   switch (doc["type"].as<int>()) {
     case 1:  // invocation

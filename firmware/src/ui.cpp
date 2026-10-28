@@ -471,6 +471,7 @@ Rect brightRect(int j) {
 
 const Rect CLOSE_RECT = {CLOSE_X, CLOSE_Y, CLOSE_W, CLOSE_H};
 const Rect SCHEDULE_RECT = {CLOSE_X, 10, CLOSE_W, 50};
+const Rect SLEEP_RECT = {CLOSE_X - 12 - 150, 10, 150, 50};
 const Rect AUTO_RECT = {M_X, CLOSE_Y, 270, CLOSE_H};
 constexpr int WIFI_X = M_X + 270 + 16;
 const Rect WIFI_RECT = {WIFI_X - 4, CLOSE_Y, CLOSE_X - 12 - (WIFI_X - 4), CLOSE_H};
@@ -497,6 +498,9 @@ void uiMenu(const MenuModel& m) {
   lcd->setTextDatum(textdatum_t::middle_center);
   lcd->setFont(&fonts::FreeSansBold12pt7b);
   lcd->drawString("SCHEDULE", SCHEDULE_RECT.x + SCHEDULE_RECT.w / 2, SCHEDULE_RECT.y + SCHEDULE_RECT.h / 2);
+
+  lcd->fillRoundRect(SLEEP_RECT.x, SLEEP_RECT.y, SLEEP_RECT.w, SLEEP_RECT.h, 10, rgb(0x3A3A48));
+  lcd->drawString("SLEEP", SLEEP_RECT.x + SLEEP_RECT.w / 2, SLEEP_RECT.y + SLEEP_RECT.h / 2);
 
   sectionLabel("SERIES", SERIES_Y);
   for (int i = 0; i < m.seriesCount; i++) {
@@ -578,6 +582,7 @@ int uiMenuHit(const MenuModel& m, int x, int y) {
   if (AUTO_RECT.contains(x, y)) return MENU_AUTO;
   if (WIFI_RECT.contains(x, y)) return MENU_WIFI;
   if (SCHEDULE_RECT.contains(x, y)) return MENU_SCHEDULE;
+  if (SLEEP_RECT.contains(x, y)) return MENU_SLEEP;
   return MENU_NONE;
 }
 

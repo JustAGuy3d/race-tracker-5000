@@ -40,7 +40,7 @@ bool bringUp(int attempts = 6) {
   lgfx::ITouch* t = lcd ? lcd->touch() : nullptr;
   if (!t) return false;
   for (int attempt = 1; attempt <= attempts; attempt++) {
-    delay(80 * attempt);  // a cold controller needs longer than a warm one
+    if (attempt > 1) delay(80 * attempt);  // a cold controller needs longer than a warm one
     if (t->init() && answers()) {
       Serial.printf("[touch] controller ready at 0x%02X (attempt %d)\n", t->config().i2c_addr, attempt);
       return true;
@@ -80,7 +80,7 @@ void touchWatch() {
   // (each attempt blocks the display for a moment).
   if (misses == 2) Serial.println("[touch] controller stopped answering, trying to recover it");
   if (misses > 6 && misses % 6 != 0) return;
-  if (bringUp(2)) {
+  if (bringUp(1)) {  // one quick try: this runs on the display loop
     recoveries++;
     misses = 0;
   }

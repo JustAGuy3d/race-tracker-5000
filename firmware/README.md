@@ -45,6 +45,10 @@ Press and hold anywhere on the screen for about a second to open the menu:
   list to see the next page (`MORE 1/2` in the top bar); it stays open until
   you tap CLOSE.
 - **Brightness:** Low / Medium / High / Max (use Max in direct sun).
+- **Sleep** (top, next to Schedule): screen off for charging. Turns the
+  backlight off and stops live timing and Wi-Fi, so most of the USB power goes
+  to the battery. **Tap the screen or press RESET to wake**; the board restarts
+  and comes back on the same series with the same settings.
 - **Auto-switch:** ON follows whichever series is on track (see below).
   Picking a series by hand turns it off.
 - **Wi-Fi:** shows the network in use, IP address and signal strength. Tap it
@@ -55,7 +59,7 @@ auto-switch is on). Series, brightness and
 auto-switch are remembered after power-off. From the serial monitor you can
 also type `0`, `1` or `2` to pick a series, `m` to open the menu, `a` to
 toggle auto-switch, `s` for the schedule page (`n` for its next page), `w`
-for the Wi-Fi screen, `t<x>,<y>` for a tap at that point, or `p` for a
+for the Wi-Fi screen, `z` to sleep (any key wakes), `t<x>,<y>` for a tap at that point, or `p` for a
 screenshot
 (`python tools/screenshot.py COMx shot.png` saves one as a PNG).
 
@@ -193,6 +197,10 @@ ignored by git.
   touch controller's reset and INT lines), matching Elecrow's own V3.0 example.
   An earlier version pulsed that reset; touch later stopped on two boards, so it
   was removed to be safe.
+- Network work (live feeds, Porsche polling, Wi-Fi rejoining) runs on its own
+  task on the ESP32's second core, so a slow or dropping hotspot never delays
+  touch. The serial log prints `[perf]` lines if the display loop is ever held
+  up for more than 80 ms.
 - If the picture flickers or shifts under Wi-Fi load, lower `LCD_PCLK_HZ`
   in `config.h` (default 12 MHz; try 10 MHz, then 8.5 MHz).
 - On Windows, keep the project in a short path (e.g. `C:\race-tracker-5000`);

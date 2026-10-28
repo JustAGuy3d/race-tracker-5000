@@ -71,6 +71,7 @@ enum MenuHit {
   MENU_AUTO = 150,
   MENU_SCHEDULE = 160,
   MENU_WIFI = 170,
+  MENU_SLEEP = 180,
   MENU_BRIGHTNESS = 200,
 };
 

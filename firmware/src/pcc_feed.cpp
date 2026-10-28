@@ -4,6 +4,7 @@
 #include "net_util.h"
 #include "pcc_parse.h"
 #include "psram.h"
+#include "state_lock.h"
 
 namespace {
 constexpr uint32_t POLL_LIVE_MS = 1000;   // same rate as Porsche's own page
@@ -54,6 +55,7 @@ bool PccFeed::poll() {
     Serial.printf("[pcc] JSON error %s (%u bytes)\n", err.c_str(), body.length());
     return false;
   }
+  StateGuard guard;  // the display reads the state from the other core
   pcc::applyState(*state_, doc.as<JsonObjectConst>());
   carreraRunning_ = pcc::carreraRunning(doc.as<JsonObjectConst>());
 

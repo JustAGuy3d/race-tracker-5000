@@ -12,6 +12,7 @@
 #include "logo_select.h"
 #include "pcc_feed.h"
 #include "schedule.h"
+#include "state_lock.h"
 #include "timefmt.h"
 #include "touch_guard.h"
 #include "ui.h"
@@ -58,6 +59,47 @@ static int sessionCount = 0;
 static TimingSource& active() { return *sources[current]; }
 
 static void openWifiList(bool rescan);
+static void keepWifi();
+
+// ---- Network task ---------------------------------------------------------------
+//
+// All network work (the live feed, Porsche polling, F1 Academy's connection
+// setup, rejoining Wi-Fi) runs here on core 0, so the touch/display loop on
+// core 1 never waits on a slow connection. On a cellular hotspot at the track
+// those steps can take seconds, which used to show up as touch lag.
+//
+// Anything that changes the feed or Wi-Fi from the display side (switching
+// series, the Wi-Fi screens, sleep) brackets the change with netPause() /
+// netResume(), so the two sides never use the same connection at once.
+static volatile bool netPauseRequested = false;
+static volatile bool netIdle = false;
+static bool netStarted = false;
+
+static void netTask(void*) {
+  for (;;) {
+    if (netPauseRequested) {
+      netIdle = true;
+      vTaskDelay(pdMS_TO_TICKS(10));
+      continue;
+    }
+    netIdle = false;
+    keepWifi();
+    active().loop();
+    vTaskDelay(pdMS_TO_TICKS(2));
+  }
+}
+
+// Waits for the network task to finish what it is doing and hold still.
+static void netPause() {
+  if (!netStarted) return;  // during setup() nothing else is running yet
+  netPauseRequested = true;
+  while (!netIdle) delay(5);
+}
+
+static void netResume() {
+  netIdle = false;
+  netPauseRequested = false;
+}
 
 static void showDashboard() {
   screen = Screen::Dashboard;
@@ -69,7 +111,10 @@ static void activate(int index) {
   lastSwitchMs = millis();
   autoProbeSetActive(current);
   prefs.putInt("series", current);
-  state.reset();
+  {
+    StateGuard guard;
+    state.reset();
+  }
   screen = Screen::Dashboard;
   uiMessage(active().title(), "Connecting to live timing...");
   Serial.printf("[main] series: %s\n", active().title());
@@ -78,8 +123,13 @@ static void activate(int index) {
 
 static void switchTo(int index) {
   if (index == current) return;
+  // Show the tap registered right away: on a bad connection the network task
+  // may take a few seconds to finish what it is doing before it pauses.
+  uiMessage(sources[index]->title(), "Switching...");
+  netPause();
   active().stop();
   activate(index);
+  netResume();
 }
 
 // ---- Schedule helpers -----------------------------------------------------------
@@ -154,7 +204,12 @@ static void autoSwitch() {
   if (screen == Screen::Menu || screen == Screen::SchedulePage) return;
 
   const time_t now = time(nullptr);
-  if (active().running(state) || inScheduledWindow(now, current)) {
+  bool running;
+  {
+    StateGuard guard;
+    running = active().running(state);
+  }
+  if (running || inScheduledWindow(now, current)) {
     if (screen == Screen::UpNext) showDashboard();
     return;
   }
@@ -211,6 +266,38 @@ static MenuModel menuModel() {
   return m;
 }
 
+// ---- Sleep -------------------------------------------------------------------
+//
+// Screen off for charging: backlight off, live timing and Wi-Fi stopped, CPU
+// slowed, so most of the USB power goes to the battery. Tap the screen (or
+// press RESET) to wake; waking restarts the board, which brings everything
+// back exactly as it was (series, brightness and auto-switch are saved).
+static void enterSleep() {
+  Serial.println("[sleep] screen off; tap the screen or press RESET to wake");
+  netPause();  // never resumed: waking restarts the board
+  active().stop();
+  autoProbeSetEnabled(false);  // runtime only; the saved setting is unchanged
+  lcd.fillScreen(TFT_BLACK);
+  lcd.setBrightness(0);
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  Serial.flush();
+  setCpuFrequencyMhz(80);
+
+  int32_t x, y;
+  while (lcd.getTouch(&x, &y)) delay(50);  // let go of the SLEEP button first
+  delay(300);
+  for (;;) {
+    touchWatch();  // picks touch back up if the controller had dropped out
+    if (lcd.getTouch(&x, &y)) break;
+    if (Serial.available()) break;
+    delay(150);
+  }
+  Serial.println("[sleep] waking");
+  Serial.flush();
+  ESP.restart();
+}
+
 static void openMenu() {
   screen = Screen::Menu;
   uiMenu(menuModel());
@@ -240,6 +327,8 @@ static void menuTap(int x, int y) {
     uiMenu(menuModel());
   } else if (hit == MENU_SCHEDULE) {
     openSchedulePage();
+  } else if (hit == MENU_SLEEP) {
+    enterSleep();
   } else if (hit == MENU_WIFI) {
     openWifiList(true);
   } else if (hit == MENU_CLOSE) {
@@ -273,7 +362,9 @@ static void openWifiList(bool rescan) {
   screen = Screen::WifiList;
   if (rescan) {
     uiWifiList(wifiListView(true));
+    netPause();  // no rejoin attempts while scanning
     netCount = wifiScan(nets, 16);
+    netResume();
     Serial.printf("[wifi] scan found %d networks\n", netCount);
   }
   uiWifiList(wifiListView(false));
@@ -310,6 +401,7 @@ static void openKeyboard(const String& ssid, bool askName) {
 static bool connectTo(const String& ssid, const String& pass) {
   uiMessage("Connecting to", ssid.c_str());
   Serial.printf("[wifi] trying %s\n", ssid.c_str());
+  netPause();
   active().stop();
   WiFi.disconnect();
   delay(200);
@@ -322,6 +414,7 @@ static bool connectTo(const String& ssid, const String& pass) {
     wifiStoreRemember(ssid, pass);
     rebuildWifiMulti();
     activate(current);  // restart live timing, back to the leaderboard
+    netResume();
     return true;
   }
   Serial.printf("[wifi] could not connect to %s\n", ssid.c_str());
@@ -329,6 +422,7 @@ static bool connectTo(const String& ssid, const String& pass) {
   uiMessage("Couldn't connect", "Going back to the previous network...");
   wifiMulti->run(10000);
   active().start(&state);
+  netResume();
   return false;
 }
 
@@ -341,8 +435,10 @@ static void wifiListTap(int x, int y) {
   } else if (hit == WL_OTHER) {
     openKeyboard("", true);
   } else if (hit >= WL_FORGET && hit < WL_FORGET + WIFI_SAVED_MAX) {
+    netPause();  // the network task uses the list of known networks
     wifiStoreForget(hit - WL_FORGET);
     rebuildWifiMulti();
+    netResume();
     openWifiList(false);
   } else if (hit >= 0 && hit < netCount) {
     if (nets[hit].secure) {
@@ -481,7 +577,7 @@ static void connectWifi() {
 }
 
 // Rejoin either known network if the connection drops (e.g. walking out of
-// hotspot range and back).
+// hotspot range and back). Runs on the network task: it can block for seconds.
 static void keepWifi() {
   static uint32_t lastTry = 0;
   if (WiFi.status() == WL_CONNECTED || millis() - lastTry < 15000) return;
@@ -495,6 +591,7 @@ void setup() {
   Serial.begin(115200);
   delay(200);
   Serial.printf("[boot] PSRAM %u bytes free\n", (unsigned)ESP.getFreePsram());
+  stateLockInit();
 
   prefs.begin("f1cyd", false);
   brightness = prefs.getUChar("bright", LCD_BRIGHTNESS);
@@ -517,13 +614,40 @@ void setup() {
   setAutoMode(prefs.getBool("auto", DEFAULT_AUTO_SWITCH));
 
   activate(prefs.getInt("series", DEFAULT_SERIES));
+  // TLS handshakes and JSON parsing need a deep stack.
+  xTaskCreatePinnedToCore(netTask, "net", 20480, nullptr, 1, nullptr, 0);
+  netStarted = true;
+}
+
+// Loop timing: touch is only read once per pass, so anything slow here shows up
+// as touch lag. Network work runs on its own task, so this should stay small;
+// logs the slowest pass every 10 s when it exceeded 80 ms.
+struct LoopTiming {
+  uint32_t touch, other, render, total;
+};
+static LoopTiming worst = {};
+
+static void reportLoopTiming() {
+  static uint32_t lastReport = 0;
+  if (millis() - lastReport < 10000) return;
+  lastReport = millis();
+  if (worst.total > 80)
+    Serial.printf("[perf] slowest loop %lu ms: touch %lu, other %lu, draw %lu\n", (unsigned long)worst.total,
+                  (unsigned long)worst.touch, (unsigned long)worst.other, (unsigned long)worst.render);
+  worst = {};
 }
 
 void loop() {
-  keepWifi();
-  active().loop();
+  LoopTiming t = {};
+  uint32_t mark = millis();
+  auto lap = [&mark](uint32_t& slot) {
+    const uint32_t now = millis();
+    slot += now - mark;
+    mark = now;
+  };
   touchWatch();
   checkTouch();
+  lap(t.touch);
   autoSwitch();
 
   static uint32_t lastSnapshot = 0;
@@ -557,6 +681,8 @@ void loop() {
       uiSchedule(scheduleView(false));
     } else if (c == 'p') {
       sendScreenshot();
+    } else if (c == 'z') {
+      enterSleep();
     } else if (c == 'w') {
       openWifiList(true);
     } else if (c == 'd') {
@@ -571,6 +697,7 @@ void loop() {
   static bool lastFeed = false;
   const uint32_t now = millis();
 
+  lap(t.other);
   if (screen == Screen::UpNext || screen == Screen::SchedulePage) {
     if (now - lastDraw >= 1000) {
       lastDraw = now;
@@ -589,8 +716,13 @@ void loop() {
       if (utc > 1700000000) fmtClock(utc, clock, sizeof clock);
       const UiContext ctx = {WiFi.status() == WL_CONNECTED, feedUp, active().title(), active().accent(),
                              active().driverHeading(), autoMode, clock, nextInfo(utc)};
+      StateGuard guard;
       uiRender(state, ctx, utc);
     }
   }
+  lap(t.render);
+  t.total = t.touch + t.other + t.render;
+  if (t.total > worst.total) worst = t;
+  reportLoopTiming();
   delay(1);
 }

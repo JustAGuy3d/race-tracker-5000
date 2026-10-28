@@ -7,6 +7,7 @@ firmware/include/config.h
 
 # Series logos are trademarks: generated locally by tools/make_logos.py
 firmware/include/logos.h
+firmware/tools/*_preview.png
 
 # OpenSCAD backups
 *.scad~

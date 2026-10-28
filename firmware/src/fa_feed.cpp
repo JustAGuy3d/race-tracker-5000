@@ -3,6 +3,7 @@
 #include "config.h"
 #include "fa_parse.h"
 #include "net_util.h"
+#include "state_lock.h"
 
 namespace {
 
@@ -158,6 +159,7 @@ void FaFeed::processMessage(const char* msg, size_t len) {
     Serial.printf("[fa] JSON error %s (%u bytes)\n", err.c_str(), (unsigned)len);
     return;
   }
+  StateGuard guard;  // the display reads the state from the other core
   if (doc["I"] == "1" && doc["R"].is<JsonObjectConst>()) {
     fa::applySnapshot(*state_, doc["R"]);
     Serial.printf("[fa] snapshot applied (%u bytes, %s / %s)\n", (unsigned)len, state_->session.meeting,
