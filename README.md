@@ -13,6 +13,8 @@ The case is also on Printables, with a print-ready 3MF:
 
 ![The finished display showing a race leaderboard](docs/images/finished-leaderboard.jpg)
 
+![The case leaning back 45° on a 2" square tube](docs/images/render-tube-mount.png)
+
 ## What it does
 
 - Live leaderboard for F1, F1 Academy or Porsche Carrera Cup NA, straight from
@@ -50,13 +52,15 @@ The case is also on Printables, with a print-ready 3MF:
 - 4 × M3 × 8 mm screws
 - 2 × M2 × 5 mm screws, for the switch
 - 3 mm foam tape: two pads of about 100 × 60 mm, one each side of the battery
+- Optional: 2 zip ties up to 7.6 mm wide (about 300 mm long for a 2" tube),
+  to mount the case on a square tube
 
 **Printed parts**
-- Front bezel, rear shell and a two-piece TPU gasket
+- Front bezel, rear shell, two button plungers and a one-piece TPU gasket
 - Optional: a fit gauge, a quick test print to check the outline and screw
   holes
-- Filament: PETG or PLA for the shell (PETG copes better with the flexing
-  button tabs), plus TPU for the gasket
+- Filament: PETG (better outdoors) or PLA for the shell, plus TPU for the
+  gasket
 
 **Tools**
 - Soldering iron, for the heat-set inserts and the switch wiring

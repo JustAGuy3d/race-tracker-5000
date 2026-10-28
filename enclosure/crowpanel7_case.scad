@@ -13,7 +13,7 @@
 // The optional front label (part = "bezel_label" / "bezel_text") needs a font
 // installed on your PC; set label_font to its name. It is off by default.
 
-part = "assembly"; // "bezel" | "bezel_label" | "rear_plain" | "bezel_text" | "gasket" | "rear" | "rear_2c_body" | "rear_2c_hex" | "gauge" | "assembly" | "mock"
+part = "assembly"; // "bezel" | "bezel_label" | "bezel_text" | "rear_plain" | "rear" | "rear_2c_body" | "rear_2c_hex" | "plungers" | "gasket" | "gauge" | "assembly" | "mock"
 
 /* [Board - from Elecrow V3.0 files] */
 pcb      = [181.0, 104.0];
@@ -26,6 +26,7 @@ usb_y    = 51.29;               // USB-C centre along the right edge
 usb_zc   = 1.6;                 // USB-C centre above the PCB
 sd_x     = 148.6;               // TF card centre along the bottom edge
 sd_zc    = 1.4;
+sd_slot  = false;              // opening for the TF card in the bottom wall (removed: the case is closed there)
 bat_y    = 23.0;                // BAT socket centre (side entry, right edge)
 buttons  = [[175.36, 84.72, "BOOT"], [175.48, 70.33, "RST"]];
 btn_h    = 2.0;
@@ -37,7 +38,7 @@ batt     = [102, 60, 11.5];     // 1160100 10000mAh: pocket is 102 x 60 inside t
 batt_c   = [95, 52];            // battery centre (kept clear of the antenna)
 batt_fit = 0;
 batt_slot = 4;                  // gap in the battery wall for the leads
-batt_slot_y = 27;               // slot centre, on the wall facing the BAT socket
+batt_slot_y = 27;               // slot centre, on the wall facing the BAT socket (use 78 with the rocker switch)
 foam_board = 3.0;               // foam tape between battery and board
 foam_shell = 3.0;               // foam tape between battery and rear shell
 
@@ -81,7 +82,17 @@ ear_len  = 14;
 ear_cav_h = 5.8;                // pocket height above the PCB (also capped by the sloped roof)
 ear_roof = 1.6;                 // pod roof thickness; the roof continues the 45 degree back bevel
 
-/* [Power switch: SS12F16 panel-mount slide switch, top edge] */
+/* [Power switch] */
+// "slide":  SS12F16 slide switch in the top edge (default)
+// "rocker": KCD1 mini rocker (snap-in, 19 x 12.5 mm cutout) on the flat back, left side
+sw_style      = "slide";
+rocker_pos    = [23.5, 78];         // flat back, left side (away from BOOT/RESET), clear of the ESP32 and battery
+rocker_cut    = [12.7, 19.2];       // snap-in opening (x, y); long side along the case height
+rocker_panel  = 1.6;                // back thinned to this around the opening, for the snap clips
+rocker_seat   = [18, 25];           // area thinned from the inside
+rocker_depth  = 21;                 // body depth behind the face plate (0.83" on the listing)
+
+/* [Slide switch: SS12F16 panel-mount, top edge (sw_style = "slide")] */
 sw_x      = 118.5;              // centre along the top edge (between UART0 socket and touch FPC)
 sw_z      = 3.9;                // centre above the PCB
 sw_flange = [19.6, 5.6];        // mounting plate
@@ -89,7 +100,19 @@ sw_holes  = 15;                 // M2 threaded holes in the plate
 sw_slot   = [7, 3.6];           // 3 mm knob + 3 mm travel
 sw_body   = [11, 5.6, 8];       // body incl. solder lugs behind the plate
 
-/* [BOOT / RESET: flush flexure buttons cut into the bevel above the switches] */
+/* [BOOT / RESET buttons] */
+// "plunger": printed plungers sliding straight down in guide tubes (default)
+// "flex": the earlier flexing tabs cut into the bevel
+btn_style  = "plunger";
+plunger_w  = 4;                 // square shaft, so the angled cap can't turn
+bore_w     = 4.5;
+sleeve_w   = 7.5;
+sleeve_bot = 7.0;               // guide tube bottom, above the PCB
+flange     = [6.5, 1.0];        // keeps the plunger from falling out
+plunger_gap = 0.6;              // tip to switch when the plunger rests out against the tube
+cap_proud  = 1.5;               // how far the cap stands out of the bevel at rest
+
+/* [Flexing tab buttons (btn_style = "flex")] */
 btn_tab   = [8, 1.0];           // tab width, tab thickness (thinned from inside)
 btn_hinge_x = 169.5;            // hinge line, upper end of the tab (outer surface x)
 btn_end_x = 180.5;              // free end of the tab (outer surface x)
@@ -97,6 +120,17 @@ btn_slot  = 0.6;                // cut around the tab
 btn_gap   = 0.3;                // post tip to switch top, at rest
 btn_post  = 5;                  // square post
 btn_tip   = 3;                  // square contact face on the switch (switch body is 3.2 x 5.2)
+
+/* [Tube seat: zip-tie mount on the bottom bevel] */
+// Leaned back 45 degrees, the bevel along the bottom edge (TF card side) is
+// level and faces down, so the case sits on top of a horizontal 1-2" square
+// tube. Zip ties run through tunnels inside the bevel wall and around the tube.
+tie_seat   = true;
+tie_xs     = [57.5, 123.5];     // tunnel positions along the bottom edge (clear of SPK and TF)
+tie_w      = 9;                 // takes ties up to 7.6 mm wide
+tie_h      = 3;
+tie_roof   = 1.2;               // plastic between tunnel and seat
+tie_band_z = 5.5;               // where each tunnel comes out on the bottom side wall
 
 /* [Fasteners: M3 heat-set inserts + M3x8 screws] */
 insert_d     = 4.5;             // hole for M3 x 4 mm long x 5 mm OD inserts
@@ -169,7 +203,7 @@ module wall_slot(axis, pos, zc, w, h) {
 }
 module openings() {
     wall_slot("x", usb_y, usb_zc, 13.5, 8);   // USB-C plug overmould
-    wall_slot("y", sd_x, sd_zc, 15, 6);       // TF card + fingernail access
+    if (sd_slot) wall_slot("y", sd_x, sd_zc, 15, 6);       // TF card + fingernail access
 }
 
 // slide switch: bolts to the inside of the top wall with two M2 x 5 screws
@@ -218,7 +252,7 @@ module gasket_channel() {
         cav2d();
     }
 }
-// printed flat in TPU; interrupted at the USB-C and TF card slots
+// printed flat in TPU; interrupted at the USB-C slot (and the TF card slot, if there is one)
 module gasket() {
     difference() {
         union() {
@@ -233,7 +267,7 @@ module gasket() {
             }
         }
         translate([pcb.x - 3, usb_y - 13.5 / 2 - 0.6, -5]) cube([12, 13.5 + 1.2, 10]);
-        translate([sd_x - 15 / 2 - 0.6, -8, -5]) cube([15 + 1.2, 10, 10]);
+        if (sd_slot) translate([sd_x - 15 / 2 - 0.6, -8, -5]) cube([15 + 1.2, 10, 10]);
     }
 }
 
@@ -346,6 +380,33 @@ module rear_cavity() {
         below_bevel(ear_roof);
     }
 }
+// frame on the bottom bevel at x: X runs down the slope (from the flat back
+// towards the side wall), Y along the bottom edge, Z out of the case
+module on_bottom_bevel(x) {
+    multmatrix([[0, 1, 0, x],
+                [-1 / s2, 0, -1 / s2, flat0.y],
+                [-1 / s2, 0, 1 / s2, zr],
+                [0, 0, 0, 1]]) children();
+}
+tie_depth = tie_roof + tie_h / 2;             // tunnel centre below the seat
+seat_len  = (zr - bevel_z) * sqrt(2);              // slant length of the seat
+// tunnel along the seat (it opens on the flat back by itself), then a dog-leg
+// out through the bottom side wall above the bezel lip
+module tie_tunnel(x, grow = 0) {
+    w = tie_w + 2 * grow;
+    h = tie_h + 2 * grow;
+    on_bottom_bevel(x) translate([-10, -w / 2, -tie_depth - h / 2]) cube([seat_len - 4 + 10, w, h]);
+    hull() {
+        on_bottom_bevel(x) translate([seat_len - 6, -w / 2, -tie_depth - h / 2]) cube([2, w, h]);
+        translate([x - w / 2, out0.y - 2, tie_band_z - h / 2]) cube([w, 2 + wall + grow, h]);
+    }
+}
+
+// a square tube of side t lying against the seat (for pictures)
+module tube_on_seat(t) {
+    on_bottom_bevel(-30) translate([(zr - bevel_z) * sqrt(2) / 2 - t / 2, 0, 0.2]) cube([t, 250, t]);
+}
+
 // everything under the right-hand bevel plane, moved inward by d (measured square to the plane)
 module below_bevel(d) {
     multmatrix([[1 / s2, 0, 1 / s2, 0],
@@ -400,13 +461,37 @@ module button_post(b) {
     }
 }
 
+// button plunger, in place (resting out against the bottom of its guide tube)
+module plunger(b) {
+    tip_z = btn_h + plunger_gap;
+    w = plunger_w;
+    intersection() {
+        translate([b.x, b.y, 0]) union() {
+            // square shaft from tip to cap, with a small blunt point that finds
+            // the switch's own plunger (45 degree taper, so it prints lying down)
+            hull() {
+                translate([-0.7, -0.7, tip_z]) cube([1.4, 1.4, eps]);
+                translate([-w / 2, -w / 2, tip_z + 1.3]) cube([w, w, eps]);
+            }
+            translate([-w / 2, -w / 2, tip_z + 1.3]) cube([w, w, zr]);
+            // flange on three sides; the fourth stays flush so it prints flat
+            translate([-flange[0] / 2, -flange[0] / 2, sleeve_bot - flange[1]])
+                cube([flange[0] / 2 + w / 2, flange[0], flange[1]]);
+        }
+        // cap cut parallel to the bevel, standing cap_proud out of it
+        below_bevel(-cap_proud);
+    }
+}
+
+module plunger_both() { for (b = buttons) plunger(b); }
+
 // floor of every honeycomb pocket, as its own body for two-colour printing
 module hex_inlays() {
     translate([ctr.x, ctr.y, zr - hex_depth - hex_inlay]) linear_extrude(hex_inlay) honeycomb();
 }
 module rear(split = false, hexes = true) {
     // button posts go on after the cuts so the tab thinning cannot sever them
-    for (b = buttons) button_post(b);
+    if (btn_style == "flex") for (b = buttons) button_post(b);
     difference() {
         union() {
             difference() { rear_envelope(); rear_cavity(); }
@@ -417,6 +502,11 @@ module rear(split = false, hexes = true) {
                     // corner posts clamp the PCB against the bezel bosses
                     linear_extrude(zr) for (p = holes) corner_pad(p, 4.5);
                     battery_corral();
+                    // guide tubes for the button plungers
+                    if (btn_style == "plunger") for (b = buttons)
+                        translate([b.x - sleeve_w / 2, b.y - sleeve_w / 2, sleeve_bot]) cube([sleeve_w, sleeve_w, zr]);
+                    // extra wall around the zip-tie tunnels
+                    if (tie_seat) for (x = tie_xs) tie_tunnel(x, grow = 1.6);
                 }
             }
         }
@@ -427,15 +517,23 @@ module rear(split = false, hexes = true) {
             translate([p.x, p.y, seat_t]) cylinder(d = head_d, h = zr);
         }
         for (b = buttons) {
-            button_cuts(b);
+            if (btn_style == "flex") button_cuts(b);
+            else translate([b.x - bore_w / 2, b.y - bore_w / 2, sleeve_bot - 1]) cube([bore_w, bore_w, zr]);
             // label on the flat back, level with its hole on the bevel
             translate([flat1.x - 1.2, b.y, zr - 0.4]) linear_extrude(1)
                 text(b[2], size = 2.8, font = "Liberation Sans:style=Bold", halign = "right", valign = "center");
         }
         if (hexes) translate([ctr.x, ctr.y, zr - hex_depth]) linear_extrude(hex_depth + 1) honeycomb();
         openings();
-        switch_cut();
+        if (sw_style == "slide") switch_cut();
+        else {
+            // rocker switch opening, with the back thinned around it for the snap clips
+            translate([rocker_pos.x - rocker_cut.x / 2, rocker_pos.y - rocker_cut.y / 2, zr - 5]) cube([rocker_cut.x, rocker_cut.y, 10]);
+            translate([rocker_pos.x - rocker_seat.x / 2, rocker_pos.y - rocker_seat.y / 2, depth - 1])
+                cube([rocker_seat.x, rocker_seat.y, zr - rocker_panel - depth + 1]);
+        }
         if (split) hex_inlays();
+        if (tie_seat) for (x = tie_xs) tie_tunnel(x);
         // relief under the tongue, except at the corner posts that clamp the PCB
         translate([0, 0, -eps]) linear_extrude(tongue_relief) difference() {
             offset(r = wall) cav2d();
@@ -470,7 +568,7 @@ module mock(grow = 0) {
     color("silver") {
         b([173.7, 46.82, 0], [180.8, 55.76, 3.21]);      // USB-C
         b([141.1, 0.2, 0], [158.1, 15.9, 2.4]);          // TF socket
-        b([143.1, -2.39, 0.7], [154.1, 12, 2.15]);       // TF card
+        if (sd_slot) b([143.1, -2.39, 0.7], [154.1, 12, 2.15]);       // TF card (sticks out past the board edge)
         b([7.5, 42.0, 0], [26.8, 61.6, 3.22]);           // ESP32-S3 module
         for (bt = buttons) b([bt.x - 1.6, bt.y - 2.6, 0], [bt.x + 1.6, bt.y + 2.6, btn_h]);
     }
@@ -486,7 +584,10 @@ module mock(grow = 0) {
     }
     color("gray") b([30, 12, 0], [168, 90, under_batt_h]);   // misc. parts keep-out
     y0 = pcb.y + clr;
-    color("#222") {                                          // slide switch
+    if (sw_style == "rocker") color("#222")                  // rocker switch body behind the back
+        translate([rocker_pos.x - rocker_cut.x / 2, rocker_pos.y - rocker_cut.y / 2, zr - rocker_depth])
+            cube([rocker_cut.x, rocker_cut.y, rocker_depth - rocker_panel - 0.01]);
+    if (sw_style == "slide") color("#222") {                 // slide switch
         translate([sw_x - sw_flange.x / 2, y0 - 0.5, sw_z - sw_flange.y / 2]) cube([sw_flange.x, 0.5, sw_flange.y]);
         translate([sw_x - sw_body.x / 2, y0 - sw_body.z, sw_z - sw_body.y / 2]) cube([sw_body.x, sw_body.z, sw_body.y]);
         translate([sw_x - 3, y0, sw_z - 1.5]) cube([3, 4, 3]);
@@ -507,6 +608,9 @@ else if (part == "rear_plain") translate([0, pcb.y, zr]) rotate([180, 0, 0]) rea
 else if (part == "rear_2c_body") translate([0, pcb.y, zr]) rotate([180, 0, 0]) rear(split = true);
 else if (part == "rear_2c_hex") translate([0, pcb.y, zr]) rotate([180, 0, 0]) hex_inlays();
 else if (part == "gauge") gauge();
+else if (part == "plungers") for (i = [0 : len(buttons) - 1])            // print lying on a flat side
+    translate([0, i * 12, plunger_w / 2]) rotate([0, 90, 0]) translate([-buttons[i].x, -buttons[i].y, 0]) plunger(buttons[i]);
+else if (part == "clash_plungers") intersection() { union() { rear(hexes = false); mock(0.15); } for (b = buttons) plunger(b); }
 else if (part == "mock") { mock(); battery_mock(); }
 else if (part == "clash_bezel") intersection() { bezel(); mock(0.15); }
 else if (part == "clash_rear") intersection() { rear(); union() { mock(0.15); battery_mock(); } }
